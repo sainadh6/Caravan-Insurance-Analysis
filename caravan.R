@@ -1,0 +1,600 @@
+# %% [code]
+#Caravan Insurance Challenge: Random Forest (R)
+
+
+# %% [code] {"_kg_hide-input":false,"_kg_hide-output":false}
+#Load Libraries 
+library(ggplot2) #Data Visualisation
+library(dplyr) #Renaming
+library(ROSE) #Sampling
+library(caret) #Partitioning
+library(randomForest) #rf
+
+#Load Dataset
+df <-read.csv("../input/caravan-insurance-challenge.csv")
+
+# %% [markdown]
+# **Data Exploration**
+# 
+# Number of rows and columns
+
+# %% [code]
+#Rows and Cols
+nrow(df)
+ncol(df)
+
+# %% [markdown]
+# Variable names(I will change these later)
+
+# %% [code]
+names(df)
+
+# %% [markdown]
+# Class label distribution 
+
+# %% [code] {"_kg_hide-input":false}
+#Class label freq
+classLabelFreq <- data.frame(df$CARAVAN)
+classLabelFreq$df.CARAVAN <- as.factor(df$CARAVAN)
+
+#Class label Distribution Plot 
+ggplot(classLabelFreq,aes(x=df.CARAVAN)) + geom_bar() + labs(x="CARAVAN")
+
+#Size of each factor level 
+length(classLabelFreq[classLabelFreq$df.CARAVAN=="0",])
+length(classLabelFreq[classLabelFreq$df.CARAVAN=="1",])
+
+# %% [markdown]
+# Customer Main Type
+
+# %% [code]
+#Cust main type
+custMainType <- data.frame(df$MOSHOOFD,df$CARAVAN)
+custMainType$df.MOSHOOFD <- as.factor(custMainType$df.MOSHOOFD)
+custMainType$df.CARAVAN <- as.factor(custMainType$df.CARAVAN)
+
+#Plot of Customer Main Type
+plot<-ggplot(custMainType,aes(x=reorder(df.MOSHOOFD,df.MOSHOOFD,function(x)-length(x)),fill=df.CARAVAN))
+plot<-plot + geom_bar() 
+plot<-plot + labs(x="Customer Main Type")
+plot                         
+                                        
+#When Caravan is true
+wantsCaravan <- df[df$CARAVAN==1,]
+wantsCaravan$MOSHOOFD <- as.factor(wantsCaravan$MOSHOOFD)
+wantsCaravan$MOSTYPE <- as.factor(wantsCaravan$MOSTYPE)
+
+#Plot of Customer Main Type where wants caravan
+plot<-ggplot(wantsCaravan,aes(x=reorder(MOSHOOFD,MOSHOOFD,function(x)-length(x))))
+plot<-plot + geom_bar()
+plot<-plot + labs(x="Customer Main Type")
+plot
+
+#Max and Min
+mainCustType = table(wantsCaravan$MOSHOOFD)
+names(which.max(mainCustType))
+names(which.min(mainCustType))                              
+
+# %% [markdown]
+# Custom Subtype
+
+# %% [code]
+#Sub cust type
+subCustType <- data.frame(df$MOSTYPE,df$CARAVAN)
+subCustType$df.MOSTYPE <- as.factor(subCustType$df.MOSTYPE)
+subCustType$df.CARAVAN <- as.factor(subCustType$df.CARAVAN)
+
+#Plot of Customer subtype
+plot<-ggplot(subCustType,aes(x=reorder(df.MOSTYPE,df.MOSTYPE,function(x)-length(x)),fill=df.CARAVAN))
+plot<-plot + geom_bar() 
+plot<-plot + labs(x="Customer Subtype")
+plot
+                                       
+#When Caravan is true
+#Plot of Customer Subtype where wants caravan 
+plot<-ggplot(wantsCaravan,aes(x=reorder(MOSTYPE,MOSTYPE,function(x)-length(x)))) 
+plot<-plot + geom_bar() 
+plot<-plot + labs(x="Customer Subtype")
+plot
+
+#Max and Min 
+subCustType = table(wantsCaravan$MOSTYPE)
+names(which.max(subCustType))
+names(which.min(subCustType))
+
+# %% [markdown]
+# Number of Car Policies(APERSAUT), this is interesting as it shows potential correlation 
+
+# %% [code]
+#Number of Car Policies
+numberOfCarPolicies <- data.frame(df$APERSAUT,df$CARAVAN)
+numberOfCarPolicies$df.APERSAUT <- as.factor(numberOfCarPolicies$df.APERSAUT)
+numberOfCarPolicies$df.CARAVAN <- as.factor(numberOfCarPolicies$df.CARAVAN)
+
+#Plot of APERSAUT
+plot<-ggplot(numberOfCarPolicies,aes(x=reorder(df.APERSAUT,df.APERSAUT,function(x)-length(x)),fill=df.CARAVAN)) 
+plot<-plot + geom_bar()
+plot<-plot + labs(x="Number of Car Policies")
+plot
+                                               
+#When caravan is true
+#Number of Car Policies When Caravan is TRUE
+wantsCaravan$APERSAUT <- as.factor(wantsCaravan$APERSAUT)
+
+#Plot of number of car policies (caravan is TRUE)
+plot<-ggplot(wantsCaravan,aes(x=APERSAUT))
+plot<-plot + geom_bar()
+plot<-plot + labs(x="Number of Car Policies")
+plot
+
+# %% [markdown]
+# **Pre-Processing**
+# 
+
+# %% [markdown]
+# Refactor
+
+# %% [code]
+#Refactoring
+#Customer Subtype Refactor
+df$MOSTYPE <- factor(df$MOSTYPE,
+                              levels=c(1:41),
+                              labels=c("High Income, expensive child",
+                                       "Very Important Provincials",
+                                       "High status seniors",
+                                       "Affluent senior apartments",
+                                       "Mixed seniors",
+                                       "Career and childcare",
+                                       "Dinki's (Double income no kids)",
+                                       "Middle class families",
+                                       "Modern, complete families",
+                                       "Stable family","Family starters",
+                                       "Affluent young families",
+                                       "Young all american family",
+                                       "Junior cosmopolitans",
+                                       "Senior cosmopolitans",
+                                       "Students in apartments",
+                                       "Fresh masters in the city",
+                                       "Single youth",
+                                       "Suburban youth",
+                                       "Ethnically diverse",
+                                       "Young urban have-nots",
+                                       "Mixed apartment dwellers",
+                                       "Young and rising", 
+                                       "Young, low educated", 
+                                       "Yound seniros in the city",
+                                       "Own home elderly",
+                                       "Seniors in apartments",
+                                       "Residential elderly",
+                                       "Porchless seniors: no front yard",
+                                       "Religious elderly singles",
+                                       "Low income catholics",
+                                       "Mixed seniors2",
+                                       "Lower class large families",
+                                       "Large family,employed child",
+                                       "Village families",
+                                       "Couples with teens 'Married with children'",
+                                       "Mixed small town dwellers",
+                                       "Traditional families",
+                                       "Large religous families",
+                                       "Large family farms",
+                                       "Mixed rurals"))
+
+#Average Age Refactor
+df$MGEMLEEF <- factor(df$MGEMLEEF,
+                     levels=c(1:6),
+                     labels=c("20-30 years",
+                              "30-40 years",
+                              "40-50 years",
+                              "50-60 years",
+                              "60-70 years",
+                              "70-80 years")) 
+
+#Custom Main Type Refactor
+df$MOSHOOFD <- factor(df$MOSHOOFD,
+                                levels=(1:10),
+                                labels=c("Successful hedonists",
+                                         "Driven Growers",
+                                         "Average Family",
+                                         "Career Loners",
+                                         "Living well",
+                                         "Cruising Seniors",
+                                         "Retired and Religious",
+                                         "Family with grown ups",
+                                         "Conservatie Families",
+                                         "Farmers"))
+
+#Percentages Refactor
+for (i in which(colnames(df)=="MGODRK"):which(colnames(df)=="MKOOPKLA")){
+  df[,i] <- factor(df[,i],
+                   levels=c(0:9),
+                   labels=c("0%",
+                            "1-10%",
+                            "11-23%",
+                            "24-36%",
+                            "37-49%",
+                            "50-62%",
+                            "63-75%",
+                            "76-88%",
+                            "89-99%",
+                            "100%"))
+}
+
+#Number of Refactor
+for (i in which(colnames(df)=="PWAPART"):which(colnames(df)=="ABYSTAND")){
+  df[,i] <- factor(df[,i],
+                   levels=c(0:9),
+                   labels=c("0",
+                            "1-49",
+                            "50-99",
+                            "100-199",
+                            "200-499",
+                            "500-999",
+                            "1000-4999",
+                            "5000-9999",
+                            "10,000-19,999",
+                            ">=20,000"))
+}
+
+#Set class label as factor 
+df$CARAVAN <- factor(df$CARAVAN,levels=c("0","1"))
+
+# %% [markdown]
+# Remove any rows with missing values
+# %% [code]
+#Remove NA's
+df<-df[complete.cases(df),]
+
+# %% [markdown]
+# Going to keep the original train and test sets and then remove the variable ORIGIN as I plan to create my own train and test sets. I will use these later to test my final model
+
+# %% [code]
+#Original Train and Test sets
+originalTrain<-df[df$ORIGIN=="train",]
+originalTest<-df[df$ORIGIN=="test",]
+#Remove ORIGIN
+df$ORIGIN<-NULL
+originalTrain$ORIGIN<-NULL
+originalTest$ORIGIN<-NULL
+
+# %% [markdown]
+# Going to resample dataset to try and balance class label
+
+# %% [code]
+#Resample Train(Oversampling)
+df<-ovun.sample(CARAVAN~.,data=df,method="over")$data
+
+# %% [markdown]
+# **Building Model**
+# 
+
+# %% [code]
+#Function to build random forest model
+buildModel<-function(trainData,testData,ntrees=100,nodeSize=1){
+  #build random forest model
+  model<-randomForest(trainData[,-ncol(trainData)],
+                      trainData[,ncol(trainData)],
+                      xtest=testData[,-ncol(testData)],
+                      ytest=testData[,ncol(testData)],
+                      ntree=ntrees,
+                      nodesize=nodeSize,
+                      proximity=TRUE,
+                      importance=TRUE)
+  #Return model
+  return(model)
+}
+
+#Print Error rates and accuracies 
+displayResultsFromModel<-function(model,trainRows,testRows){
+  print("TRAIN")
+  #Train OOB Error
+  print(paste("Train OOB Error: ",
+              model$err.rate[nrow(model$test$err.rate),
+                                                 1,
+                                                 drop=FALSE],sep=""))
+  #Train Factor Level 0 Error
+  print(paste("Train CARAVAN=0 Error: ",model$err.rate[nrow(model$test$err.rate),
+                                                       2,
+                                                       drop=FALSE],sep=""))
+  #Train Factor Level 1 Error
+  print(paste("Train CARAVAN=1 Error: ",model$err.rate[nrow(model$test$err.rate),
+                                                       3,
+                                                       drop=FALSE],sep=""))
+  #Train Accuracy
+  trainAuc<-sum(diag(model$confusion))/trainRows
+  print(paste("Train Accuracy: ",trainAuc,sep=""))
+
+  #Print blank line between train and test results
+  print(" ")
+  
+  print("TEST")
+  #Test Error
+  print(paste("Test Error: ",model$test$err.rate[nrow(model$test$err.rate),
+                                                 1,
+                                                 drop=FALSE],sep=""))
+  #Train Factor Level 0 Error
+  print(paste("Test CARAVAN=0 Error: ",model$test$err.rate[nrow(model$test$err.rate),
+                                                           2,
+                                                           drop=FALSE],sep=""))
+  #Train Factor Level 1 Error
+  print(paste("Test CARAVAN=1 Error: ",model$test$err.rate[nrow(model$test$err.rate),
+                                                           3,
+                                                           drop=FALSE],sep=""))
+  #Test Accuracy
+  testAuc<-sum(diag(model$test$confusion))/testRows
+  print(paste("Test Accuracy: ",testAuc,sep=""))
+
+}
+
+#Function to perform 10 fold cross validation
+validateModel <- function(data,ntrees=100,nodeSize=1){
+  #Frame to hold results
+  results<-data.frame(OOB=as.numeric(),
+                      trainFalseError=as.numeric(),
+                      trainTrueError=as.numeric(),
+                      testError=as.numeric(),
+                      testFalseError=as.numeric(),
+                      testTrueError=as.numeric(),
+                      trainAccuracy=as.numeric(),
+                      testAccuracy=as.numeric())
+  #Folds generated using Caret packages createFolds 
+  folds<-createFolds(data$CARAVAN,k=10,list=TRUE,returnTrain=FALSE)
+  for (i in 1:10){
+    #Keep one set for testing, rest training
+    trainData<-data[-c(folds[[i]]),]
+    testData<-data[c(folds[[i]]),]
+    model<-randomForest(trainData[,-ncol(trainData)],
+                        trainData[,ncol(trainData)],
+                        xtest=testData[,-ncol(testData)],
+                        ytest=testData[,ncol(testData)],
+                        ntree=ntrees,
+                        nodesize=nodeSize,
+                        proximity=TRUE)
+    #TRAIN
+    oob<-model$err.rate[nrow(model$test$err.rate),1,drop=FALSE]
+    trainFalse<-model$err.rate[nrow(model$test$err.rate),2,drop=FALSE]
+    trainTrue<-model$err.rate[nrow(model$test$err.rate),3,drop=FALSE]
+    trainAccuracy<-sum(diag(model$confusion))/nrow(trainData)
+    #TEST
+    testError<-model$test$err.rate[nrow(model$test$err.rate),1,drop=FALSE]
+    testFalse<-model$test$err.rate[nrow(model$test$err.rate),2,drop=FALSE]
+    testTrue<-model$test$err.rate[nrow(model$test$err.rate),3,drop=FALSE]
+    testAccuracy<-sum(diag(model$test$confusion))/nrow(testData)
+    #Create new Row in results with values
+    results[nrow(results)+1,]<-c(oob,
+                                 trainFalse,
+                                 trainTrue,
+                                 testError,
+                                 testFalse,
+                                 testTrue,
+                                 trainAccuracy,
+                                 testAccuracy)
+  }
+  #Return results
+  return(results)
+}
+
+#Takes results and displays them as a whole and with averages 
+displayResults<-function(results){
+  Position=c(1:10)
+  #PLOT COLUMNS
+  #TRAIN
+  #OOB
+  plot<-ggplot(results,aes(x=Position,y=OOB)) 
+  plot<-plot + geom_point()
+  plot<-plot + geom_smooth()
+  plot<-plot + labs(title="OOB")
+  print(plot)
+  #Train Caravan=0 Error
+  plot<-ggplot(results,aes(x=Position,y=trainFalseError)) 
+  plot<-plot + geom_point()
+  plot<-plot + geom_smooth()
+  plot<-plot + labs(title="Train Caravan=0 Error")
+  print(plot)
+  #Train Caravan=1 Error
+  plot<-ggplot(results,aes(x=Position,y=trainTrueError)) 
+  plot<-plot + geom_point()
+  plot<-plot + geom_smooth()
+  plot<-plot + labs(title="Train Caravan=1 Error")
+  print(plot)
+  #Train Accuracy
+  plot<-ggplot(results,aes(x=Position,y=trainAccuracy)) 
+  plot<-plot + geom_point()
+  plot<-plot + geom_smooth()
+  plot<-plot + labs(title="Train Accuracy")
+  print(plot)
+  
+  #TEST
+  #Test Error
+  plot<-ggplot(results,aes(x=Position,y=testError)) 
+  plot<-plot + geom_point()
+  plot<-plot + geom_smooth()
+  plot<-plot + labs(title="Test Error")
+  print(plot)
+  #Test Caravan=0 Error
+  plot<-ggplot(results,aes(x=Position,y=testFalseError)) 
+  plot<-plot + geom_point()
+  plot<-plot + geom_smooth()
+  plot<-plot + labs(title="Test Caravan=0 Error")
+  print(plot)
+  #Test Caravan=1 Error
+  plot<-ggplot(results,aes(x=Position,y=testTrueError)) 
+  plot<-plot + geom_point()
+  plot<-plot + geom_smooth()
+  plot<-plot + labs(title="Test Caravan=1 Error")
+  print(plot)
+  #Test Accuracy
+  plot<-ggplot(results,aes(x=Position,y=testAccuracy)) 
+  plot<-plot + geom_point()
+  plot<-plot + geom_smooth()
+  plot<-plot + labs(title="Test Accuracy")
+  print(plot)
+  
+  #AVERAGES
+  #TRAIN
+  #OOB
+  print(paste("Average OOB: ",
+              sum(results$OOB)/nrow(results),sep=""))
+  #Train CARAVAN=0 Error
+  print(paste("Average CARAVAN=0 Error: ",
+              sum(results$trainFalseError)/nrow(results),sep=""))
+  #Train Caravan=1 Error
+  print(paste("Average CARAVAN=1 Error: ",
+              sum(results$trainTrueError)/nrow(results),sep=""))
+  #Train Accuracy
+  print(paste("Average Train Accuracy: ",
+              sum(results$trainAccuracy)/nrow(results),sep=""))
+  
+  #Print blank line between train and test results
+  print(" ")
+  
+  #Test Error
+  print(paste("Average Test Error: ",
+              sum(results$testError)/nrow(results),sep=""))
+  #Test CARAVAN=0 Error
+  print(paste("Average CARAVAN=0 Error: ",
+              sum(results$testFalseError)/nrow(results),sep=""))
+  #Test CARAVAN=1 Error
+  print(paste("Average CARAVAN=1 Error: ",
+              sum(results$testTrueError)/nrow(results),sep=""))
+  #Test Accuracy
+  print(paste("Average Test Accuracy: ",
+              sum(results$testAccuracy)/nrow(results),sep=""))
+}
+
+# %% [markdown]
+# To finetune my model I have created functions to determine values for ntree and node size. 
+# %% [code]
+#Using same train and test set as before 
+#Tweak number of trees 
+testNTrees <- function(trainData,testData){
+  ntrees<-20
+  results<-NULL
+  results<-data.frame(NTrees=as.numeric(),
+                      OOB=as.numeric(),
+                      trainFalseError=as.numeric(),
+                      trainTrueError=as.numeric(),
+                      testError=as.numeric(),
+                      testFalseError=as.numeric(),
+                      testTrueError=as.numeric(),
+                      trainAccuracy=as.numeric(),
+                      testAccuracy=as.numeric())
+  for (i in 1:9){
+    trainData=train
+    testData=test
+    model<-randomForest(trainData[,-ncol(trainData)],
+                        trainData[,ncol(trainData)],
+                        xtest=testData[,-ncol(testData)],
+                        ytest=testData[,ncol(testData)],
+                        ntree=ntrees,
+                        proximity=TRUE)
+    #TRAIN
+    oob<-model$err.rate[nrow(model$test$err.rate),1,drop=FALSE]
+    trainFalse<-model$err.rate[nrow(model$test$err.rate),2,drop=FALSE]
+    trainTrue<-model$err.rate[nrow(model$test$err.rate),3,drop=FALSE]
+    trainAccuracy<-sum(diag(model$confusion))/nrow(trainData)
+    #TEST
+    testError<-model$test$err.rate[nrow(model$test$err.rate),1,drop=FALSE]
+    testFalse<-model$test$err.rate[nrow(model$test$err.rate),2,drop=FALSE]
+    testTrue<-model$test$err.rate[nrow(model$test$err.rate),3,drop=FALSE]
+    testAccuracy<-sum(diag(model$test$confusion))/nrow(testData)
+    #Create new row in results with new data
+    results[nrow(results)+1,]<-c(ntrees,
+                                 oob,
+                                 trainFalse,
+                                 trainTrue,
+                                 testError,
+                                 testFalse,
+                                 testTrue,
+                                 trainAccuracy,
+                                 testAccuracy)
+    results
+    ntrees <-ntrees + 10
+  }
+  #return max row
+  ntrees<-results$NTrees[which.max(results$testAccuracy)]
+  return(ntrees)
+}
+
+#Tweek Nodesize
+testNodeSize <- function(trainData,testData,ntrees){
+  nsize<-0
+  results<-data.frame(Nodesize=as.numeric(),
+                      OOB=as.numeric(),
+                      trainFalseError=as.numeric(),
+                      trainTrueError=as.numeric(),
+                      testError=as.numeric(),
+                      testFalseError=as.numeric(),
+                      testTrueError=as.numeric(),
+                      trainAccuracy=as.numeric(),
+                      testAccuracy=as.numeric())
+  for (i in 1:floor(nrow(trainData)/100)){
+    model<-randomForest(trainData[,-ncol(trainData)],
+                        trainData[,ncol(trainData)],
+                        xtest=testData[,-ncol(testData)],
+                        ytest=testData[,ncol(testData)],
+                        ntree=ntrees,
+                        proximity=TRUE)
+    #TRAIN
+    oob<-model$err.rate[nrow(model$test$err.rate),1,drop=FALSE]
+    trainFalse<-model$err.rate[nrow(model$test$err.rate),2,drop=FALSE]
+    trainTrue<-model$err.rate[nrow(model$test$err.rate),3,drop=FALSE]
+    trainAccuracy<-sum(diag(model$confusion))/nrow(trainData)
+    #TEST
+    testError<-model$test$err.rate[nrow(model$test$err.rate),1,drop=FALSE]
+    testFalse<-model$test$err.rate[nrow(model$test$err.rate),2,drop=FALSE]
+    testTrue<-model$test$err.rate[nrow(model$test$err.rate),3,drop=FALSE]
+    testAccuracy<-sum(diag(model$test$confusion))/nrow(testData)
+    results[nrow(results)+1,]<-c(nsize,
+                                 oob,
+                                 trainFalse,
+                                 trainTrue,
+                                 testError,
+                                 testFalse,
+                                 testTrue,
+                                 trainAccuracy,
+                                 testAccuracy)
+    nsize<-nsize+1
+  }
+  #Return node size 
+  nodeSize<-results$Nodesize[which.max(results$testAccuracy)]
+  return(nodeSize)
+}
+
+# %% [markdown]
+# After examining mean decrease in accuracy, customer subtype seems to have the greatest effect so I will remove it
+
+# %% [code]
+df$MOSTYPE <- NULL
+originalTest$MOSTYPE <- NULL
+originalTrain$MOSTYPE <- NULL
+
+# %% [markdown]
+# Now I will create my train and test set
+
+# %% [code]
+#Partition dataset using caret
+part<-createDataPartition(y=df$CARAVAN,p=0.7,list=FALSE)
+train<-df[part,]
+test<-df[-part,]
+
+# %% [markdown]
+# Now I will build my models
+
+# %% [code]
+#Final model
+model<-buildModel(train,test,ntrees=20,nodeSize=24)
+#Display results
+trainRows<-nrow(train)
+testRows<-nrow(test)
+displayResultsFromModel(model,trainRows,testRows)
+
+# %% [code]
+#Original Train and Test (Work In Progress)
+modelOrig<-buildModel(originalTrain,originalTest,ntrees=20,nodeSize=24)
+trainRows<-nrow(originalTrain)
+testRows<-nrow(originalTest)
+displayResultsFromModel(modelOrig,trainRows,testRows)
+
+# %% [markdown]
+# 
