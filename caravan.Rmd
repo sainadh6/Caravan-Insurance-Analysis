@@ -1,5 +1,5 @@
 # %% [code]
-#Caravan Insurance Challenge: Random Forest (R)
+#Caravan Insurance Code: Random Forest (R)
 
 
 # %% [code] {"_kg_hide-input":false,"_kg_hide-output":false}
